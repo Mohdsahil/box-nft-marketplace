@@ -1,0 +1,122 @@
+account 7 => id = 3 (default)
+account 7 => id = 4 (box nft)
+account 7 => id = 5 (box)
+
+
+nft1 metadta: https://ipfs.io/ipfs/Qmb54yumay6uVAs4PKAqSJHbZ6B2u2MdNphoe2pskGLV8A
+
+
+upload image on ipfs: 
+const uploadImage = async (req, res) => {
+    const { logger } = req;
+    try {
+        // console.log(req.body)
+        let data = req.body['myImage'];
+        let attributes = JSON.parse(req.body['attributes'])
+        // console.log("attributes: ", attributes)
+        var base64Str = data;
+        var path ='./upload/';
+        var optionalObj = {'fileName': 'myImage', 'type':'png'};
+
+        base64ToImage(base64Str,path,optionalObj); 
+
+        let ipfs = await ipfsClient();
+        let result = ""
+        if(fs.existsSync("./upload/myImage.png")) {
+          setTimeout(async () => {
+            let myImage = await fs.readFileSync('./upload/myImage.png')
+            // console.log(myImage)
+            result = await ipfs.add(myImage);
+
+            let nftImg = `${IPFS_BASE_URL}/${result.path}`
+            let nftMetadata = {
+                "attributes": [
+                  attributes,
+                ],
+                "description": "new box description",
+                "image": nftImg,
+                "name": "New box"
+            }
+            fs.writeFileSync('nft-metaData.json', JSON.stringify(nftMetadata));
+            let nftMetaData = fs.readFileSync('nft-metaData.json')
+            let nftResult = await ipfs.add(nftMetaData);
+           
+            let tokenURI = `${IPFS_BASE_URL}/${nftResult.path}`
+
+            const obj = {
+                res,
+                status: 201,
+                msg: "file uploaded successfully.",
+                data: {tokenURI: tokenURI}
+            };
+            return Response.success(obj);
+          }, 1000)
+          
+        } else {  
+          console.log("file not exist.")
+        }
+        // console.log(result);
+    } catch(error) {
+        return handleException(logger, res, error)
+    }
+}
+
+get Box nft metadata: 
+const getNewFusedNftData = async (req, res) => {
+  const { logger } = req
+  try {
+    let {
+      account,
+      tokenIdOne,
+      tokenIdTwo
+    } = req.body
+    
+    let tokenUriOne = await nftContract.methods.tokenURI(tokenIdOne).call()
+    let tokenUriTwo = await nftContract.methods.tokenURI(tokenIdTwo).call()
+
+    let tokenOne = await axios.get(tokenUriOne)
+    tokenOne = tokenOne.data
+   
+    let tokenTwo = await axios.get(tokenUriTwo)
+    tokenTwo = tokenTwo.data
+    
+    
+    let attributesOne = tokenOne.attributes[0]
+    let attributesTwo = tokenTwo.attributes[0]
+    let newAttribute = {
+      border: Math.floor(Math.random() * 2) == 0 ?  attributesOne.border : attributesTwo.border,
+      borderBottomColor: Math.floor(Math.random() * 2) == 0 ?  attributesOne.borderBottomColor : attributesTwo.borderBottomColor,
+      borderLeftColor: Math.floor(Math.random() * 2) == 0 ?  attributesOne.borderLeftColor : attributesTwo.borderLeftColor,
+      borderRightColor: Math.floor(Math.random() * 2) == 0 ?  attributesOne.borderRightColor : attributesTwo.borderRightColor,
+      borderTopColor: Math.floor(Math.random() * 2) == 0 ?  attributesOne.borderTopColor : attributesTwo.borderTopColor,
+      display: Math.floor(Math.random() * 2) == 0 ?  attributesOne.display : attributesTwo.display,
+      height: Math.floor(Math.random() * 2) == 0 ?  attributesOne.height : attributesTwo.height,
+      margin: Math.floor(Math.random() * 2) == 0 ?  attributesOne.margin : attributesTwo.margin,
+      width: Math.floor(Math.random() * 2) == 0 ?  attributesOne.width : attributesTwo.width
+    }
+    const obj = {
+      res,
+      status: 201,
+      data: {attributes: newAttribute}
+    };
+    return Response.success(obj);
+  } catch(error) {
+    return handleException(logger, res, error)
+  }
+}
+
+ipfs client: 
+async function ipfsClient() {
+    try {
+        const ipfs = await create(
+            {
+                host: 'ipfs.infura.io',
+                port: 5001,
+                protocol: 'https',
+            }
+        );
+        return ipfs;
+    } catch (error) {
+        console.error(error)
+    }
+}
